@@ -265,6 +265,16 @@ async fn update_config_json(
                     router_table.insert("background".to_string(), toml::Value::String(s.to_string()));
                 }
             }
+            if let Some(auto_map) = router.get("auto_map_regex") {
+                if let Some(s) = auto_map.as_str() {
+                    router_table.insert("auto_map_regex".to_string(), toml::Value::String(s.to_string()));
+                }
+            }
+            if let Some(bg_regex) = router.get("background_regex") {
+                if let Some(s) = bg_regex.as_str() {
+                    router_table.insert("background_regex".to_string(), toml::Value::String(s.to_string()));
+                }
+            }
         }
     }
 

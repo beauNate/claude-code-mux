@@ -1661,13 +1661,23 @@
             // Sync localStorage to server (only called by save buttons)
             async function syncToServer() {
                 try {
+                    console.log("=== Syncing to server ===");
+                    console.log("appState.config.router:", appState.config.router);
+                    console.log("Full config being sent:", appState.config);
+
                     const response = await fetch("/api/config/json", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(appState.config),
                     });
+
+                    console.log("Server response status:", response.status);
+
                     if (response.ok) {
                         saveToLocalStorage(appState.config);
+                    } else {
+                        const errorText = await response.text();
+                        console.error("Server error:", errorText);
                     }
                     return response.ok;
                 } catch (error) {
@@ -1780,7 +1790,19 @@
 
             function loadRouterTab() {
                 if (!appState.loaded) return;
-                // Router tab loads data via form binding, no explicit loading needed
+
+                const config = appState.config;
+
+                // Populate router form with current values
+                const defaultSelect = document.querySelector('[name="default_model"]');
+                const thinkSelect = document.querySelector('[name="think_model"]');
+                const backgroundSelect = document.querySelector('[name="background_model"]');
+                const websearchSelect = document.querySelector('[name="websearch_model"]');
+
+                if (defaultSelect) defaultSelect.value = config.router.default || "";
+                if (thinkSelect) thinkSelect.value = config.router.think || "";
+                if (backgroundSelect) backgroundSelect.value = config.router.background || "";
+                if (websearchSelect) websearchSelect.value = config.router.websearch || "";
             }
 
             function loadSettingsTab() {
@@ -2556,24 +2578,32 @@
                         debounce(
                             "router",
                             () => {
+                                console.log("=== Router form change detected ===");
                                 const formData = new FormData(routerForm);
                                 const defaultModel =
                                     formData.get("default_model");
+                                const thinkModel = formData.get("think_model");
+                                const backgroundModel = formData.get("background_model");
+                                const websearchModel = formData.get("websearch_model");
+
+                                console.log("FormData values:", {
+                                    default: defaultModel,
+                                    think: thinkModel,
+                                    background: backgroundModel,
+                                    websearch: websearchModel
+                                });
 
                                 if (!defaultModel) return; // Skip if required field is empty
 
                                 // Update router config in state
                                 appState.config.router.default = defaultModel;
 
-                                const thinkModel = formData.get("think_model");
                                 if (thinkModel) {
                                     appState.config.router.think = thinkModel;
                                 } else {
                                     delete appState.config.router.think;
                                 }
 
-                                const backgroundModel =
-                                    formData.get("background_model");
                                 if (backgroundModel) {
                                     appState.config.router.background =
                                         backgroundModel;
@@ -2581,14 +2611,14 @@
                                     delete appState.config.router.background;
                                 }
 
-                                const websearchModel =
-                                    formData.get("websearch_model");
                                 if (websearchModel) {
                                     appState.config.router.websearch =
                                         websearchModel;
                                 } else {
                                     delete appState.config.router.websearch;
                                 }
+
+                                console.log("Updated appState.config.router:", appState.config.router);
 
                                 // Save to localStorage only
                                 saveToLocalStorage(appState.config);

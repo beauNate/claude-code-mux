@@ -5,11 +5,9 @@
 [![GitHub Stars](https://img.shields.io/github/stars/9j/claude-code-mux?style=social)](https://github.com/9j/claude-code-mux)
 [![GitHub Forks](https://img.shields.io/github/forks/9j/claude-code-mux?style=social)](https://github.com/9j/claude-code-mux/fork)
 
-**Performance**: ~5MB RAM · <1ms routing · 1000+ req/s · Zero config overhead
+OpenRouter met Claude Code Router. They had a baby.
 
 ---
-
-OpenRouter met Claude Code Router. They had a baby.
 
 Now your coding assistant can use GLM 4.6 for one task, Kimi K2 Thinking for another, and Minimax M2 for a third. All in the same session. When your primary provider goes down, it falls back to your backup automatically.
 
