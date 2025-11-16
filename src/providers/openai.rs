@@ -28,6 +28,39 @@ struct OpenAIRequest {
     tool_choice: Option<serde_json::Value>,
 }
 
+/// OpenAI Responses API request format (for Codex models)
+#[derive(Debug, Serialize)]
+struct OpenAIResponsesRequest {
+    model: String,
+    input: OpenAIResponsesInput,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_output_tokens: Option<u32>,  // Responses API uses max_output_tokens, not max_tokens
+    #[serde(skip_serializing_if = "Option::is_none")]
+    temperature: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    top_p: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stop: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stream: Option<bool>,
+}
+
+/// Input for Responses API can be string or array of messages
+#[derive(Debug, Serialize)]
+#[serde(untagged)]
+enum OpenAIResponsesInput {
+    Text(String),
+    Messages(Vec<OpenAIResponsesMessage>),
+}
+
+/// Message format for Responses API
+#[derive(Debug, Serialize)]
+struct OpenAIResponsesMessage {
+    role: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content: Option<String>,
+}
+
 /// Content can be string or array of content parts
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -122,6 +155,37 @@ struct OpenAIUsage {
     total_tokens: u32,
 }
 
+/// OpenAI Responses API response format (for Codex models)
+#[derive(Debug, Deserialize)]
+struct OpenAIResponsesResponse {
+    id: String,
+    model: String,
+    output: Vec<ResponsesOutput>,
+    usage: ResponsesUsage,
+}
+
+#[derive(Debug, Deserialize)]
+struct ResponsesOutput {
+    #[serde(rename = "type")]
+    output_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content: Option<Vec<ResponsesContentBlock>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ResponsesContentBlock {
+    #[serde(rename = "type")]
+    block_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    text: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ResponsesUsage {
+    input_tokens: u32,
+    output_tokens: u32,
+}
+
 /// OpenAI provider implementation
 pub struct OpenAIProvider {
     api_key: String,
@@ -140,6 +204,73 @@ impl OpenAIProvider {
             models,
             custom_headers: Vec::new(),
         }
+    }
+
+    /// Check if the model is a Codex model that requires /v1/responses endpoint
+    fn is_codex_model(model: &str) -> bool {
+        model.to_lowercase().contains("codex")
+    }
+
+    /// Transform Anthropic request to OpenAI Responses API format
+    fn transform_to_responses_request(&self, request: &AnthropicRequest) -> Result<OpenAIResponsesRequest, ProviderError> {
+        // Convert messages to Responses API input format
+        let mut messages = Vec::new();
+
+        // Add system message first if present
+        if let Some(ref system) = request.system {
+            let system_text = match system {
+                crate::models::SystemPrompt::Text(text) => text.clone(),
+                crate::models::SystemPrompt::Blocks(blocks) => {
+                    blocks.iter()
+                        .map(|b| b.text.clone())
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                }
+            };
+            messages.push(OpenAIResponsesMessage {
+                role: "system".to_string(),
+                content: Some(system_text),
+            });
+        }
+
+        // Transform messages
+        for msg in &request.messages {
+            let content = match &msg.content {
+                MessageContent::Text(text) => text.clone(),
+                MessageContent::Blocks(blocks) => {
+                    let text = blocks.iter()
+                        .filter_map(|block| {
+                            match block {
+                                crate::models::ContentBlock::Text { text } => Some(text.clone()),
+                                _ => None,
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    // Responses API requires content, use empty string if none
+                    if text.is_empty() {
+                        String::new()
+                    } else {
+                        text
+                    }
+                }
+            };
+
+            messages.push(OpenAIResponsesMessage {
+                role: msg.role.clone(),
+                content: Some(content),  // Always provide content
+            });
+        }
+
+        Ok(OpenAIResponsesRequest {
+            model: request.model.clone(),
+            input: OpenAIResponsesInput::Messages(messages),
+            max_output_tokens: Some(request.max_tokens),
+            temperature: request.temperature,
+            top_p: request.top_p,
+            stop: request.stop_sequences.clone(),
+            stream: request.stream,
+        })
     }
 
     pub fn with_headers(api_key: String, base_url: Option<String>, models: Vec<String>, custom_headers: Vec<(String, String)>) -> Self {
@@ -468,52 +599,132 @@ impl OpenAIProvider {
             },
         }
     }
+
+    /// Transform Responses API response to Anthropic format
+    fn transform_responses_response(&self, response: OpenAIResponsesResponse) -> ProviderResponse {
+        // Extract text from output messages
+        let text = response.output.iter()
+            .filter(|output| output.output_type == "message")
+            .filter_map(|output| output.content.as_ref())
+            .flat_map(|content_blocks| {
+                content_blocks.iter()
+                    .filter(|block| block.block_type == "output_text")
+                    .filter_map(|block| block.text.clone())
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        ProviderResponse {
+            id: response.id,
+            r#type: "message".to_string(),
+            role: "assistant".to_string(),
+            content: vec![ContentBlock::Text {
+                text,
+            }],
+            model: response.model,
+            stop_reason: Some("end_turn".to_string()),
+            stop_sequence: None,
+            usage: Usage {
+                input_tokens: response.usage.input_tokens,
+                output_tokens: response.usage.output_tokens,
+            },
+        }
+    }
 }
 
 #[async_trait]
 impl AnthropicProvider for OpenAIProvider {
     async fn send_message(&self, request: AnthropicRequest) -> Result<ProviderResponse, ProviderError> {
-        let openai_request = self.transform_request(&request)?;
+        // Check if this is a Codex model
+        let is_codex = Self::is_codex_model(&request.model);
 
-        let url = format!("{}/chat/completions", self.base_url);
+        if is_codex {
+            // Use /v1/responses endpoint for Codex models
+            let responses_request = self.transform_to_responses_request(&request)?;
+            let url = format!("{}/responses", self.base_url);
 
-        let mut req_builder = self.client
-            .post(&url)
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json");
+            tracing::debug!("Using /v1/responses endpoint for Codex model: {}", request.model);
 
-        // Add custom headers (for OpenRouter, NovitaAI, etc.)
-        for (key, value) in &self.custom_headers {
-            req_builder = req_builder.header(key, value);
+            let mut req_builder = self.client
+                .post(&url)
+                .header("Authorization", format!("Bearer {}", self.api_key))
+                .header("Content-Type", "application/json");
+
+            // Add custom headers
+            for (key, value) in &self.custom_headers {
+                req_builder = req_builder.header(key, value);
+            }
+
+            let response = req_builder
+                .json(&responses_request)
+                .send()
+                .await?;
+
+            if !response.status().is_success() {
+                let status = response.status().as_u16();
+                let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+                tracing::error!("Responses API error ({}): {}", status, error_text);
+                return Err(ProviderError::ApiError {
+                    status,
+                    message: error_text,
+                });
+            }
+
+            let response_text = response.text().await?;
+            tracing::debug!("Responses API response body: {}", response_text);
+
+            // Parse as Responses API response
+            let responses_response: OpenAIResponsesResponse = serde_json::from_str(&response_text)
+                .map_err(|e| {
+                    tracing::error!("Failed to parse Responses API response: {}", e);
+                    tracing::error!("Response body was: {}", response_text);
+                    e
+                })?;
+
+            Ok(self.transform_responses_response(responses_response))
+        } else {
+            // Use standard /v1/chat/completions endpoint for non-Codex models
+            let openai_request = self.transform_request(&request)?;
+            let url = format!("{}/chat/completions", self.base_url);
+
+            let mut req_builder = self.client
+                .post(&url)
+                .header("Authorization", format!("Bearer {}", self.api_key))
+                .header("Content-Type", "application/json");
+
+            // Add custom headers (for OpenRouter, NovitaAI, etc.)
+            for (key, value) in &self.custom_headers {
+                req_builder = req_builder.header(key, value);
+            }
+
+            let response = req_builder
+                .json(&openai_request)
+                .send()
+                .await?;
+
+            if !response.status().is_success() {
+                let status = response.status().as_u16();
+                let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+                return Err(ProviderError::ApiError {
+                    status,
+                    message: error_text,
+                });
+            }
+
+            // Get response body as text for debugging
+            let response_text = response.text().await?;
+            tracing::debug!("OpenAI provider response body: {}", response_text);
+
+            // Try to parse the response
+            let openai_response: OpenAIResponse = serde_json::from_str(&response_text)
+                .map_err(|e| {
+                    tracing::error!("Failed to parse OpenAI response: {}", e);
+                    tracing::error!("Response body was: {}", response_text);
+                    e
+                })?;
+
+            Ok(self.transform_response(openai_response))
         }
-
-        let response = req_builder
-            .json(&openai_request)
-            .send()
-            .await?;
-
-        if !response.status().is_success() {
-            let status = response.status().as_u16();
-            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-            return Err(ProviderError::ApiError {
-                status,
-                message: error_text,
-            });
-        }
-
-        // Get response body as text for debugging
-        let response_text = response.text().await?;
-        tracing::debug!("OpenAI provider response body: {}", response_text);
-
-        // Try to parse the response
-        let openai_response: OpenAIResponse = serde_json::from_str(&response_text)
-            .map_err(|e| {
-                tracing::error!("Failed to parse OpenAI response: {}", e);
-                tracing::error!("Response body was: {}", response_text);
-                e
-            })?;
-
-        Ok(self.transform_response(openai_response))
     }
 
     async fn count_tokens(&self, request: CountTokensRequest) -> Result<CountTokensResponse, ProviderError> {
