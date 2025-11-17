@@ -9,8 +9,46 @@ permissions:
   contents: write
 
 jobs:
+  check-changes:
+    name: Check if source code changed
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for source changes
+        id: check
+        run: |
+          # Get list of changed files between this tag and previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+
+          if [ -z "$PREV_TAG" ]; then
+            echo "No previous tag found, building release"
+            echo "should_build=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Get changed files
+          CHANGED_FILES=$(git diff --name-only $PREV_TAG HEAD)
+
+          # Check if any non-doc files changed
+          # Skip build only if ALL changes are in: docs/, *.md, CHANGELOG.md, LICENSE
+          if echo "$CHANGED_FILES" | grep -qvE '^(docs/|.*\.md$|CHANGELOG\.md$|LICENSE$)'; then
+            echo "Source code changes detected, building release"
+            echo "should_build=true" >> $GITHUB_OUTPUT
+          else
+            echo "Only documentation changes detected, skipping build"
+            echo "should_build=false" >> $GITHUB_OUTPUT
+          fi
+
   build:
     name: Build ${{ matrix.target }}
+    needs: check-changes
+    if: needs.check-changes.outputs.should_build == 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -93,7 +131,8 @@ jobs:
 
   release:
     name: Create Release
-    needs: build
+    needs: [check-changes, build]
+    if: needs.check-changes.outputs.should_build == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

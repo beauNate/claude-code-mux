@@ -1,5 +1,7 @@
 # Claude Code Mux
 
+[![CI](https://github.com/9j/claude-code-mux/workflows/CI/badge.svg)](https://github.com/9j/claude-code-mux/actions)
+[![Latest Release](https://img.shields.io/github/v/release/9j/claude-code-mux)](https://github.com/9j/claude-code-mux/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org/)
 [![GitHub Stars](https://img.shields.io/github/stars/9j/claude-code-mux?style=social)](https://github.com/9j/claude-code-mux)
@@ -22,64 +24,24 @@ Claude Code → Claude Code Mux → Multiple AI Providers
 
 ## Table of Contents
 
-- [Why Choose Claude Code Mux?](#why-choose-claude-code-mux)
 - [Key Features](#key-features)
-- [Screenshots](#screenshots)
-- [Supported Providers](#supported-providers)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
+- [Screenshots](#screenshots)
 - [Usage Guide](#usage-guide)
 - [Routing Logic](#routing-logic)
 - [Configuration Examples](#configuration-examples)
+- [Supported Providers](#supported-providers)
 - [Advanced Features](#advanced-features)
 - [CLI Usage](#cli-usage)
-- [Documentation](#documentation)
+- [Troubleshooting](#troubleshooting)
+- [FAQ](#faq)
 - [Performance](#performance)
+- [Why Choose Claude Code Mux?](#why-choose-claude-code-mux)
+- [Documentation](#documentation)
+- [Changelog](#changelog)
 - [Contributing](#contributing)
 - [License](#license)
-
-## Why Choose Claude Code Mux?
-
-### 🎯 Two Core Advantages
-
-#### 1. **Automatic Failover**
-Priority-based provider fallback - if your primary provider fails, automatically route to backup:
-
-```toml
-[[models]]
-name = "glm-4.6"
-
-[[models.mappings]]
-actual_model = "glm-4.6"
-priority = 1
-provider = "zai"
-
-[[models.mappings]]
-actual_model = "z-ai/glm-4.6"
-priority = 2
-provider = "openrouter"
-```
-
-If `zai` fails → automatically falls back to `openrouter`. No code changes needed.
-
-#### 2. **Easy Configuration**
-Web UI with auto-save - no JSON editing, no CLI commands, no restarts:
-
-| Task | Claude Code Router | Claude Code Mux |
-|------|-------------------|----------------|
-| **Add Provider** | Edit JSON + restart | Click "Add Provider" in Web UI |
-| **Add Model** | Edit JSON + restart | Click "Add Model" in Web UI |
-| **Change Routing** | Edit JSON + `ccr restart` | Select in dropdown (auto-saves) |
-| **View Config** | `cat ~/.claude-code-router/config.json` | Open Web UI |
-| **Share Config** | Copy JSON file | Share URL (`?tab=router`) |
-
-### 💡 What This Means
-
-**Reliability**: Your AI coding workflow doesn't break when one provider has downtime.
-
-**Speed**: Configure providers and models in 5 minutes via Web UI instead of editing JSON files.
-
-**Simplicity**: One Web UI to manage everything - no CLI commands to remember.
 
 ## Key Features
 
@@ -102,32 +64,40 @@ Web UI with auto-save - no JSON editing, no CLI commands, no restarts:
 
 ## Screenshots
 
-### Overview Dashboard
-Main dashboard showing router configuration, providers, and models summary.
+<details>
+<summary>📸 Click to view screenshots (5 images)</summary>
 
-![Dashboard](docs/images/dashboard.png)
+### Overview Dashboard
+![Dashboard showing router configuration, providers, and models summary](docs/images/dashboard.png)
+*Main dashboard with router configuration and provider management*
 
 ### Provider Management
-Add and manage multiple AI providers with automatic format translation.
-
-![Providers](docs/images/providers.png)
+![Provider management interface with add/edit capabilities](docs/images/providers.png)
+*Add and manage multiple AI providers with automatic format translation*
 
 ### Model Mappings with Fallback
-Configure models with priority-based fallback routing.
-
-![Models](docs/images/models.png)
+![Model configuration with priority-based fallback routing](docs/images/models.png)
+*Configure models with priority-based fallback routing*
 
 ### Router Configuration
-Set up intelligent routing rules.
-
-![Routing](docs/images/routing.png)
+![Router configuration interface for intelligent routing rules](docs/images/routing.png)
+*Set up intelligent routing rules for different task types*
 
 ### Live Testing Interface
-Test your configuration with real API calls.
+![Testing interface for verifying configuration with real API calls](docs/images/testing.png)
+*Test your configuration with live API requests and responses*
 
-![Testing](docs/images/testing.png)
+</details>
 
 ## Supported Providers
+
+**16+ AI providers with automatic format translation, streaming, and failover:**
+
+- **Anthropic-compatible**: Anthropic (API Key/OAuth), ZenMux, z.ai, Minimax, Kimi
+- **OpenAI-compatible**: OpenAI, OpenRouter, Groq, Together, Fireworks, Deepinfra, Cerebras, Moonshot, Nebius, NovitaAI, Baseten
+
+<details>
+<summary>📋 View full provider details</summary>
 
 ### Anthropic-Compatible (Native Format)
 - **Anthropic** - Official Claude API provider (supports both API Key and OAuth)
@@ -150,7 +120,7 @@ Test your configuration with real API calls.
 - **NovitaAI** - GPU cloud platform
 - **Baseten** - ML deployment platform
 
-All providers support **automatic format translation**, **streaming**, and **failover**!
+</details>
 
 ## Installation
 
@@ -856,17 +826,128 @@ tail -f ~/.claude-code-mux/ccm.log
 
 ## Performance
 
-- **Memory**: ~5MB RAM (vs ~50MB for Node.js routers)
+- **Memory**: ~6MB RAM (vs ~156MB for Node.js routers) - **25x more efficient**
 - **Startup**: <100ms cold start
 - **Routing**: <1ms overhead per request
 - **Throughput**: Handles 1000+ req/s on modern hardware
 - **Streaming**: Zero-copy SSE streaming with minimal latency
+
+## FAQ
+
+<details>
+<summary><b>Does it work with my existing Claude Code setup?</b></summary>
+
+Yes! Just set two environment variables:
+```bash
+export ANTHROPIC_BASE_URL="http://127.0.0.1:13456"
+export ANTHROPIC_API_KEY="any-string"
+claude
+```
+</details>
+
+<details>
+<summary><b>What happens if all providers fail?</b></summary>
+
+The proxy returns an error response with details about the failover chain and which providers were attempted. Check the logs for debugging information.
+</details>
+
+<details>
+<summary><b>Can I use this with Claude Pro/Max subscription?</b></summary>
+
+Yes! Claude Code Mux supports OAuth 2.0 authentication. Configure it in the Providers tab → Add Provider → Select "Anthropic" → Choose "OAuth (Claude Pro/Max)" authentication.
+</details>
+
+<details>
+<summary><b>How do I add a new AI provider?</b></summary>
+
+1. Navigate to the **Providers** tab in the admin UI
+2. Click **"Add Provider"**
+3. Select provider type (Anthropic-compatible or OpenAI-compatible)
+4. Enter provider name, API key, and base URL
+5. Click **"Add Provider"**
+6. Click **"Save to Server"**
+</details>
+
+<details>
+<summary><b>Why is my routing not working as expected?</b></summary>
+
+Check the routing order:
+1. **WebSearch** (highest priority) - if request has `web_search` tool
+2. **Subagent** - if system prompt contains `<CCM-SUBAGENT-MODEL>` tag
+3. **Think Mode** - if request has `thinking` field
+4. **Background** - if ORIGINAL model name matches background regex
+5. **Default** - fallback
+
+Enable debug logging with `RUST_LOG=debug ccm start` to see routing decisions.
+</details>
+
+<details>
+<summary><b>How do I report bugs or request features?</b></summary>
+
+- **Bug reports**: [Open a GitHub issue](https://github.com/9j/claude-code-mux/issues/new)
+- **Feature requests**: [Start a discussion](https://github.com/9j/claude-code-mux/discussions)
+- **Security issues**: Email the maintainer (see GitHub profile)
+</details>
+
+## Why Choose Claude Code Mux?
+
+### 🎯 Two Core Advantages
+
+#### 1. **Automatic Failover** 🔄
+Priority-based provider fallback - if your primary provider fails, automatically route to backup:
+
+```toml
+[[models]]
+name = "glm-4.6"
+
+[[models.mappings]]
+actual_model = "glm-4.6"
+priority = 1
+provider = "zai"
+
+[[models.mappings]]
+actual_model = "z-ai/glm-4.6"
+priority = 2
+provider = "openrouter"
+```
+
+If `zai` fails → automatically falls back to `openrouter`. **No manual intervention needed.**
+
+> **💡 Why This Matters**: Claude Code Router doesn't have failover - if a provider goes down, your workflow stops. With Claude Code Mux, you get uninterrupted coding even during provider outages.
+
+#### 2. **Simpler & More Efficient** ⚡️
+
+| Feature | Claude Code Router | Claude Code Mux |
+|---------|-------------------|----------------|
+| **UI Access** | `ccr ui` (separate launch) | Built-in at `http://localhost:13456` |
+| **Config Format** | JSON + Transformers | TOML (simpler) |
+| **Memory Usage** | ~156MB (Node.js) | ~6MB (Rust) - **25x lighter** |
+| **Failover** | ❌ Not supported | ✅ Priority-based automatic failover |
+| **Claude Pro/Max** | API Key only | ✅ OAuth 2.0 supported |
+| **Router Auto-save** | Manual save only | Auto-saves to localStorage |
+| **Config Sharing** | Share JSON file | Share URL (`?tab=router`) |
+
+### 💡 What This Means
+
+**Reliability**: Automatic failover keeps you coding when providers go down. (CCR lacks this)
+
+**Faster Setup**: Built-in UI (no `ccr ui` needed) + simpler TOML config.
+
+**Performance**: 25x more memory efficient (6MB vs 156MB).
+
+**Claude Pro/Max Compatible**: OAuth 2.0 authentication supported (CCR requires API key only).
+
+**Simplicity**: TOML is easier than JSON with complex transformer configurations.
 
 ## Documentation
 
 - [Design Principles](docs/design-principles.md) - Claude Code Mux design philosophy and UX guidelines
 - [URL-based State Management](docs/url-state-management.md) - Admin UI URL-based state management pattern
 - [LocalStorage-based State Management](docs/localstorage-state-management.md) - Admin UI localStorage-based client state management
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for detailed release history or view [GitHub Releases](https://github.com/9j/claude-code-mux/releases) for downloads.
 
 ## Contributing
 
