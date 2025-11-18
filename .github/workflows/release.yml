@@ -48,7 +48,7 @@ jobs:
   check-changes:
     name: Check if source code changed
     needs: [create-tag]
-    if: always() && !cancelled() && !failure()
+    if: always() && !cancelled()
     runs-on: ubuntu-latest
     outputs:
       should_build: ${{ steps.check.outputs.should_build }}
