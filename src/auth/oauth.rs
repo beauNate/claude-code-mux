@@ -3,7 +3,7 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use anyhow::{Context, Result, anyhow};
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 
 use super::token_store::{OAuthToken, TokenStore};
 

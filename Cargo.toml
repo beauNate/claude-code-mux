@@ -9,9 +9,17 @@ repository = "https://github.com/yourusername/claude-code-mux"
 keywords = ["claude", "code", "router", "llm", "ai"]
 categories = ["command-line-utilities", "web-programming"]
 
+[lib]
+name = "claude_code_mux"
+path = "src/lib.rs"
+
 [[bin]]
 name = "ccm"
 path = "src/main.rs"
+
+[[example]]
+name = "oauth_login"
+path = "examples/oauth_login.rs"
 
 [dependencies]
 # Web Framework
@@ -74,6 +82,7 @@ nix = { version = "0.29", features = ["signal"] }  # Unix signals
 tokio-test = "0.4"
 mockito = "1"
 criterion = "0.5"          # Benchmarking
+tempfile = "3"             # Temporary directories for tests
 
 # Property Testing
 proptest = "1"
