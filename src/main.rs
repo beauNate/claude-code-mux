@@ -68,7 +68,10 @@ async fn main() -> anyhow::Result<()> {
 
             tracing::info!("Starting Claude Code Mux on port {}", config.server.port);
             println!("🚀 Claude Code Mux v{}", env!("CARGO_PKG_VERSION"));
-            println!("📡 Starting server on {}:{}", config.server.host, config.server.port);
+            println!(
+                "📡 Starting server on {}:{}",
+                config.server.host, config.server.port
+            );
             println!();
             println!("⚡️ Rust-powered for maximum performance");
             println!("🧠 Intelligent context-aware routing");

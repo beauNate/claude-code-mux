@@ -1,7 +1,7 @@
+use crate::providers::ProviderConfig;
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use anyhow::{Context, Result};
-use crate::providers::ProviderConfig;
 
 /// Application configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -153,7 +153,11 @@ impl AppConfig {
                     if let Ok(value) = std::env::var(env_var) {
                         provider.api_key = Some(value);
                     } else {
-                        anyhow::bail!("Environment variable {} not found for provider {}", env_var, provider.name);
+                        anyhow::bail!(
+                            "Environment variable {} not found for provider {}",
+                            env_var,
+                            provider.name
+                        );
                     }
                 }
             }

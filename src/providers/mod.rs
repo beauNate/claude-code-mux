@@ -1,15 +1,15 @@
+pub mod anthropic_compatible;
 pub mod error;
 pub mod openai;
-pub mod anthropic_compatible;
 pub mod registry;
 pub mod streaming;
 
+use crate::models::{AnthropicRequest, ContentBlock, CountTokensRequest, CountTokensResponse};
 use async_trait::async_trait;
-use crate::models::{AnthropicRequest, CountTokensRequest, CountTokensResponse, ContentBlock};
-use error::ProviderError;
-use serde::{Deserialize, Serialize};
 use bytes::Bytes;
+use error::ProviderError;
 use futures::stream::Stream;
+use serde::{Deserialize, Serialize};
 use std::pin::Pin;
 
 /// Provider response that maintains Anthropic API compatibility
@@ -37,18 +37,24 @@ pub struct Usage {
 pub trait AnthropicProvider: Send + Sync {
     /// Send a message request to the provider
     /// Must transform to/from Anthropic format as needed
-    async fn send_message(&self, request: AnthropicRequest) -> Result<ProviderResponse, ProviderError>;
+    async fn send_message(
+        &self,
+        request: AnthropicRequest,
+    ) -> Result<ProviderResponse, ProviderError>;
 
     /// Send a streaming message request to the provider
     /// Returns a stream of raw bytes (SSE format)
     async fn send_message_stream(
         &self,
-        request: AnthropicRequest
+        request: AnthropicRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<Bytes, ProviderError>> + Send>>, ProviderError>;
 
     /// Count tokens for a request
     /// Provider-specific implementation (tiktoken for OpenAI, etc.)
-    async fn count_tokens(&self, request: CountTokensRequest) -> Result<CountTokensResponse, ProviderError>;
+    async fn count_tokens(
+        &self,
+        request: CountTokensRequest,
+    ) -> Result<CountTokensResponse, ProviderError>;
 
     /// Check if provider supports a specific model
     fn supports_model(&self, model: &str) -> bool;
@@ -109,6 +115,6 @@ impl ProviderConfig {
 }
 
 // Re-export provider implementations
-pub use openai::OpenAIProvider;
 pub use anthropic_compatible::AnthropicCompatibleProvider;
+pub use openai::OpenAIProvider;
 pub use registry::ProviderRegistry;
