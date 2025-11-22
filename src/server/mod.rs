@@ -34,7 +34,7 @@ pub async fn start_server(config: AppConfig) -> anyhow::Result<()> {
     let router = Router::new(config.clone());
 
     // Initialize OAuth token store FIRST (needed by provider registry)
-    let token_store = TokenStore::default()
+    let token_store = TokenStore::default_location()
         .map_err(|e| anyhow::anyhow!("Failed to initialize token store: {}", e))?;
 
     let existing_tokens = token_store.list_providers();

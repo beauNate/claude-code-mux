@@ -76,7 +76,7 @@ impl TokenStore {
     }
 
     /// Create a token store at the default location
-    pub fn default() -> Result<Self> {
+    pub fn default_location() -> Result<Self> {
         let path = Self::default_path()?;
         Self::new(path)
     }
