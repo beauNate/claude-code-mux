@@ -1,9 +1,9 @@
+use anyhow::{anyhow, Context, Result};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
+use chrono::Utc;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use anyhow::{Context, Result, anyhow};
-use chrono::{DateTime, Utc};
 
 use super::token_store::{OAuthToken, TokenStore};
 
@@ -26,9 +26,12 @@ impl PKCEVerifier {
         let mut hasher = Sha256::new();
         hasher.update(verifier.as_bytes());
         let challenge_bytes = hasher.finalize();
-        let challenge = URL_SAFE_NO_PAD.encode(&challenge_bytes);
+        let challenge = URL_SAFE_NO_PAD.encode(challenge_bytes);
 
-        Self { verifier, challenge }
+        Self {
+            verifier,
+            challenge,
+        }
     }
 }
 
@@ -116,8 +119,7 @@ impl OAuthClient {
     pub fn get_authorization_url(&self) -> AuthorizationUrl {
         let pkce = PKCEVerifier::generate();
 
-        let mut url = url::Url::parse(&self.config.auth_url)
-            .expect("Invalid auth URL");
+        let mut url = url::Url::parse(&self.config.auth_url).expect("Invalid auth URL");
 
         // Check if this is OpenAI Codex (based on client_id)
         let is_openai_codex = self.config.client_id == "app_EMoamEEZ73f0CkXaXp7hrann";
@@ -127,7 +129,8 @@ impl OAuthClient {
             // Generate random state for CSRF protection
             use rand::Rng;
             let random_bytes: Vec<u8> = (0..16).map(|_| rand::thread_rng().gen()).collect();
-            let state = random_bytes.iter()
+            let state = random_bytes
+                .iter()
                 .map(|b| format!("{:02x}", b))
                 .collect::<String>();
 
@@ -139,7 +142,7 @@ impl OAuthClient {
                 .append_pair("scope", &self.config.scopes.join(" "))
                 .append_pair("code_challenge", &pkce.challenge)
                 .append_pair("code_challenge_method", "S256")
-                .append_pair("state", &state)  // Random state, NOT verifier
+                .append_pair("state", &state) // Random state, NOT verifier
                 .append_pair("id_token_add_organizations", "true")
                 .append_pair("codex_cli_simplified_flow", "true")
                 .append_pair("originator", "codex_cli_rs");
@@ -198,7 +201,7 @@ impl OAuthClient {
                 ("grant_type", "authorization_code"),
                 ("client_id", &self.config.client_id),
                 ("code", auth_code),
-                ("code_verifier", verifier),  // This is the PKCE verifier from frontend
+                ("code_verifier", verifier), // This is the PKCE verifier from frontend
                 ("redirect_uri", &self.config.redirect_uri),
             ];
 
@@ -223,7 +226,7 @@ impl OAuthClient {
 
             let request = TokenRequest {
                 code: auth_code.to_string(),
-                state: verifier.to_string(),  // Anthropic uses verifier as state
+                state: verifier.to_string(), // Anthropic uses verifier as state
                 grant_type: "authorization_code".to_string(),
                 client_id: self.config.client_id.clone(),
                 redirect_uri: self.config.redirect_uri.clone(),
@@ -245,7 +248,9 @@ impl OAuthClient {
             return Err(anyhow!("Token exchange failed: {} - {}", status, body));
         }
 
-        let token_response: TokenResponse = response.json().await
+        let token_response: TokenResponse = response
+            .json()
+            .await
             .context("Failed to parse token response")?;
 
         let expires_at = Utc::now() + chrono::Duration::seconds(token_response.expires_in);
@@ -266,7 +271,9 @@ impl OAuthClient {
 
     /// Refresh an access token
     pub async fn refresh_token(&self, provider_id: &str) -> Result<OAuthToken> {
-        let existing_token = self.token_store.get(provider_id)
+        let existing_token = self
+            .token_store
+            .get(provider_id)
             .context("No token found for provider")?;
 
         #[derive(Deserialize)]
@@ -323,7 +330,9 @@ impl OAuthClient {
             return Err(anyhow!("Token refresh failed: {} - {}", status, body));
         }
 
-        let token_response: TokenResponse = response.json().await
+        let token_response: TokenResponse = response
+            .json()
+            .await
             .context("Failed to parse token response")?;
 
         let expires_at = Utc::now() + chrono::Duration::seconds(token_response.expires_in);
@@ -344,7 +353,9 @@ impl OAuthClient {
 
     /// Get a valid access token (refreshing if needed)
     pub async fn get_valid_token(&self, provider_id: &str) -> Result<String> {
-        let token = self.token_store.get(provider_id)
+        let token = self
+            .token_store
+            .get(provider_id)
             .context("No token found for provider")?;
 
         if token.needs_refresh() {
@@ -364,7 +375,8 @@ impl OAuthClient {
             raw_key: String,
         }
 
-        let response = self.http_client
+        let response = self
+            .http_client
             .post("https://api.anthropic.com/api/oauth/claude_cli/create_api_key")
             .header("Content-Type", "application/json")
             .header("Authorization", format!("Bearer {}", access_token))
@@ -378,7 +390,9 @@ impl OAuthClient {
             return Err(anyhow!("API key creation failed: {} - {}", status, body));
         }
 
-        let api_key_response: ApiKeyResponse = response.json().await
+        let api_key_response: ApiKeyResponse = response
+            .json()
+            .await
             .context("Failed to parse API key response")?;
 
         Ok(api_key_response.raw_key)

@@ -1,5 +1,5 @@
 //! OAuth Login Example
-//! 
+//!
 //! This example shows how to authenticate with Claude Pro/Max using OAuth.
 //! Run with: cargo run --example oauth_login
 
@@ -16,7 +16,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Initialize OAuth client
     let config = OAuthConfig::anthropic();
-    let token_store = TokenStore::default()?;
+    let token_store = TokenStore::default_location()?;
     let oauth_client = OAuthClient::new(config, token_store);
 
     // Generate authorization URL

@@ -1,13 +1,13 @@
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    response::{Html, IntoResponse},
+    response::Html,
     Json,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::auth::{OAuthClient, OAuthConfig, TokenStore};
+use crate::auth::{OAuthClient, OAuthConfig};
 
 use super::AppState;
 
@@ -80,10 +80,12 @@ pub async fn oauth_authorize(
         "max" => OAuthConfig::anthropic(),
         "console" => OAuthConfig::anthropic_console(),
         "openai-codex" => OAuthConfig::openai_codex(),
-        _ => return Err((
-            StatusCode::BAD_REQUEST,
-            "Invalid oauth_type. Must be 'max', 'console', or 'openai-codex'".to_string()
-        )),
+        _ => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Invalid oauth_type. Must be 'max', 'console', or 'openai-codex'".to_string(),
+            ))
+        }
     };
 
     let oauth_client = OAuthClient::new(config, state.token_store.clone());
@@ -114,14 +116,17 @@ pub async fn oauth_exchange(
             "openai-codex" => OAuthConfig::openai_codex(),
             "console" => OAuthConfig::anthropic_console(),
             "max" => OAuthConfig::anthropic(),
-            _ => return Err((
-                StatusCode::BAD_REQUEST,
-                format!("Invalid oauth_type: {}", oauth_type)
-            )),
+            _ => {
+                return Err((
+                    StatusCode::BAD_REQUEST,
+                    format!("Invalid oauth_type: {}", oauth_type),
+                ))
+            }
         }
-    } else if req.provider_id.to_lowercase().contains("openai") ||
-              req.provider_id.to_lowercase().contains("codex") ||
-              req.provider_id.to_lowercase().contains("chatgpt") {
+    } else if req.provider_id.to_lowercase().contains("openai")
+        || req.provider_id.to_lowercase().contains("codex")
+        || req.provider_id.to_lowercase().contains("chatgpt")
+    {
         OAuthConfig::openai_codex()
     } else {
         OAuthConfig::anthropic()
@@ -133,10 +138,12 @@ pub async fn oauth_exchange(
     let token = oauth_client
         .exchange_code(&req.code, &req.verifier, &req.provider_id)
         .await
-        .map_err(|e| (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to exchange code: {}", e)
-        ))?;
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to exchange code: {}", e),
+            )
+        })?;
 
     Ok(Json(OAuthExchangeResponse {
         success: true,
@@ -175,12 +182,12 @@ pub async fn oauth_delete_token(
     State(state): State<Arc<AppState>>,
     Json(req): Json<DeleteTokenRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
-    state.token_store
-        .remove(&req.provider_id)
-        .map_err(|e| (
+    state.token_store.remove(&req.provider_id).map_err(|e| {
+        (
             StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to delete token: {}", e)
-        ))?;
+            format!("Failed to delete token: {}", e),
+        )
+    })?;
 
     Ok(Json(serde_json::json!({
         "success": true,
@@ -194,9 +201,10 @@ pub async fn oauth_refresh_token(
     Json(req): Json<DeleteTokenRequest>,
 ) -> Result<Json<OAuthExchangeResponse>, (StatusCode, String)> {
     // Determine OAuth config based on provider_id (check for OpenAI keywords)
-    let config = if req.provider_id.to_lowercase().contains("openai") ||
-                     req.provider_id.to_lowercase().contains("codex") ||
-                     req.provider_id.to_lowercase().contains("chatgpt") {
+    let config = if req.provider_id.to_lowercase().contains("openai")
+        || req.provider_id.to_lowercase().contains("codex")
+        || req.provider_id.to_lowercase().contains("chatgpt")
+    {
         OAuthConfig::openai_codex()
     } else {
         OAuthConfig::anthropic()
@@ -207,10 +215,12 @@ pub async fn oauth_refresh_token(
     let token = oauth_client
         .refresh_token(&req.provider_id)
         .await
-        .map_err(|e| (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to refresh token: {}", e)
-        ))?;
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to refresh token: {}", e),
+            )
+        })?;
 
     Ok(Json(OAuthExchangeResponse {
         success: true,
@@ -230,13 +240,14 @@ pub struct OAuthCallbackQuery {
 }
 
 /// OAuth callback handler - displays the authorization code to the user
-pub async fn oauth_callback(
-    Query(params): Query<OAuthCallbackQuery>,
-) -> Html<String> {
+pub async fn oauth_callback(Query(params): Query<OAuthCallbackQuery>) -> Html<String> {
     // Check for errors
     if let Some(error) = params.error {
-        let error_desc = params.error_description.unwrap_or_else(|| "Unknown error".to_string());
-        return Html(format!(r#"
+        let error_desc = params
+            .error_description
+            .unwrap_or_else(|| "Unknown error".to_string());
+        return Html(format!(
+            r#"
 <!DOCTYPE html>
 <html>
 <head>
@@ -289,13 +300,17 @@ pub async fn oauth_callback(
     </div>
 </body>
 </html>
-"#));
+"#
+        ));
     }
 
     // Extract code (state is not used for token exchange, verifier is stored in frontend)
-    let code = params.code.unwrap_or_else(|| "No code received".to_string());
+    let code = params
+        .code
+        .unwrap_or_else(|| "No code received".to_string());
 
-    Html(format!(r#"
+    Html(format!(
+        r#"
 <!DOCTYPE html>
 <html>
 <head>
@@ -435,5 +450,6 @@ pub async fn oauth_callback(
     </script>
 </body>
 </html>
-"#))
+"#
+    ))
 }

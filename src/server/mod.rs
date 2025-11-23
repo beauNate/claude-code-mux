@@ -1,24 +1,25 @@
-mod openai_compat;
 mod oauth_handlers;
+mod openai_compat;
 
+use crate::auth::TokenStore;
 use crate::cli::AppConfig;
 use crate::models::AnthropicRequest;
-use crate::router::Router;
 use crate::providers::ProviderRegistry;
-use crate::auth::TokenStore;
+use crate::router::Router;
 use axum::{
     extract::State,
     http::{HeaderMap, StatusCode},
     response::{
-        Html, IntoResponse, Response, sse::{Event, Sse},
+        sse::{Event, Sse},
+        Html, IntoResponse, Response,
     },
     routing::{get, post},
     Form, Json, Router as AxumRouter,
 };
+use futures::stream::StreamExt;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tracing::{error, info};
-use futures::stream::StreamExt;
 
 /// Application state shared across handlers
 #[derive(Clone)]
@@ -34,21 +35,25 @@ pub async fn start_server(config: AppConfig) -> anyhow::Result<()> {
     let router = Router::new(config.clone());
 
     // Initialize OAuth token store FIRST (needed by provider registry)
-    let token_store = TokenStore::default()
+    let token_store = TokenStore::default_location()
         .map_err(|e| anyhow::anyhow!("Failed to initialize token store: {}", e))?;
 
     let existing_tokens = token_store.list_providers();
     if !existing_tokens.is_empty() {
-        info!("🔐 Loaded {} OAuth tokens from storage", existing_tokens.len());
+        info!(
+            "🔐 Loaded {} OAuth tokens from storage",
+            existing_tokens.len()
+        );
     }
 
     // Initialize provider registry from config (with token store)
     let provider_registry = Arc::new(
         ProviderRegistry::from_configs(&config.providers, Some(token_store.clone()))
-            .map_err(|e| anyhow::anyhow!("Failed to initialize provider registry: {}", e))?
+            .map_err(|e| anyhow::anyhow!("Failed to initialize provider registry: {}", e))?,
     );
 
-    info!("📦 Loaded {} providers with {} models",
+    info!(
+        "📦 Loaded {} providers with {} models",
         provider_registry.list_providers().len(),
         provider_registry.list_models().len()
     );
@@ -76,13 +81,22 @@ pub async fn start_server(config: AppConfig) -> anyhow::Result<()> {
         .route("/api/config/json", post(update_config_json))
         .route("/api/restart", post(restart_server))
         // OAuth endpoints
-        .route("/api/oauth/authorize", post(oauth_handlers::oauth_authorize))
+        .route(
+            "/api/oauth/authorize",
+            post(oauth_handlers::oauth_authorize),
+        )
         .route("/api/oauth/exchange", post(oauth_handlers::oauth_exchange))
         .route("/api/oauth/callback", get(oauth_handlers::oauth_callback))
-        .route("/auth/callback", get(oauth_handlers::oauth_callback))  // OpenAI Codex uses this path
+        .route("/auth/callback", get(oauth_handlers::oauth_callback)) // OpenAI Codex uses this path
         .route("/api/oauth/tokens", get(oauth_handlers::oauth_list_tokens))
-        .route("/api/oauth/tokens/delete", post(oauth_handlers::oauth_delete_token))
-        .route("/api/oauth/tokens/refresh", post(oauth_handlers::oauth_refresh_token));
+        .route(
+            "/api/oauth/tokens/delete",
+            post(oauth_handlers::oauth_delete_token),
+        )
+        .route(
+            "/api/oauth/tokens/refresh",
+            post(oauth_handlers::oauth_refresh_token),
+        );
 
     // Clone state before moving it
     let oauth_state = state.clone();
@@ -111,7 +125,10 @@ pub async fn start_server(config: AppConfig) -> anyhow::Result<()> {
             }
             Err(e) => {
                 // Don't fail if port 1455 is already in use - just warn
-                error!("⚠️  Failed to bind OAuth callback server on {}: {}", oauth_addr, e);
+                error!(
+                    "⚠️  Failed to bind OAuth callback server on {}: {}",
+                    oauth_addr, e
+                );
                 error!("⚠️  OpenAI Codex OAuth will not work. Port 1455 must be available.");
             }
         }
@@ -138,8 +155,12 @@ async fn health_check() -> impl IntoResponse {
 
 /// REMOVED: This endpoint was for LiteLLM integration which has been removed.
 /// Models are now managed through the provider registry and config.
-async fn get_models(State(_state): State<Arc<AppState>>) -> Result<Json<serde_json::Value>, AppError> {
-    Err(AppError::ParseError("This endpoint has been removed. Use /api/models-config instead.".to_string()))
+async fn get_models(
+    State(_state): State<Arc<AppState>>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    Err(AppError::ParseError(
+        "This endpoint has been removed. Use /api/models-config instead.".to_string(),
+    ))
 }
 
 /// Get current routing configuration
@@ -179,7 +200,10 @@ async fn update_config(Form(update): Form<ConfigUpdate>) -> Result<Html<String>,
 
     // Update router section
     if let Some(router) = config.get_mut("router").and_then(|v| v.as_table_mut()) {
-        router.insert("default".to_string(), toml::Value::String(update.default_model));
+        router.insert(
+            "default".to_string(),
+            toml::Value::String(update.default_model),
+        );
 
         if let Some(bg) = update.background_model {
             router.insert("background".to_string(), toml::Value::String(bg));
@@ -307,22 +331,30 @@ async fn update_config_json(
             }
             if let Some(ws) = router.get("websearch") {
                 if let Some(s) = ws.as_str() {
-                    router_table.insert("websearch".to_string(), toml::Value::String(s.to_string()));
+                    router_table
+                        .insert("websearch".to_string(), toml::Value::String(s.to_string()));
                 }
             }
             if let Some(bg) = router.get("background") {
                 if let Some(s) = bg.as_str() {
-                    router_table.insert("background".to_string(), toml::Value::String(s.to_string()));
+                    router_table
+                        .insert("background".to_string(), toml::Value::String(s.to_string()));
                 }
             }
             if let Some(auto_map) = router.get("auto_map_regex") {
                 if let Some(s) = auto_map.as_str() {
-                    router_table.insert("auto_map_regex".to_string(), toml::Value::String(s.to_string()));
+                    router_table.insert(
+                        "auto_map_regex".to_string(),
+                        toml::Value::String(s.to_string()),
+                    );
                 }
             }
             if let Some(bg_regex) = router.get("background_regex") {
                 if let Some(s) = bg_regex.as_str() {
-                    router_table.insert("background_regex".to_string(), toml::Value::String(s.to_string()));
+                    router_table.insert(
+                        "background_regex".to_string(),
+                        toml::Value::String(s.to_string()),
+                    );
                 }
             }
         }
@@ -374,14 +406,17 @@ async fn restart_server(State(state): State<Arc<AppState>>) -> Response {
 
 /// Create and execute a shell script that waits for shutdown and restarts
 fn create_and_execute_restart_script(port: u16) -> std::io::Result<()> {
-    use std::process::Command;
     use std::fs;
+    use std::process::Command;
 
     // Get current executable path and PID
     let exe_path = std::env::current_exe()?;
     let current_pid = std::process::id();
 
-    info!("Creating restart script for PID: {} on port: {}", current_pid, port);
+    info!(
+        "Creating restart script for PID: {} on port: {}",
+        current_pid, port
+    );
 
     #[cfg(unix)]
     {
@@ -480,8 +515,17 @@ async fn handle_openai_chat_completions(
     );
 
     // 3. Try model mappings with fallback (1:N mapping)
-    if let Some(model_config) = state.config.models.iter().find(|m| m.name == decision.model_name) {
-        info!("📋 Found {} provider mappings for model: {}", model_config.mappings.len(), decision.model_name);
+    if let Some(model_config) = state
+        .config
+        .models
+        .iter()
+        .find(|m| m.name == decision.model_name)
+    {
+        info!(
+            "📋 Found {} provider mappings for model: {}",
+            model_config.mappings.len(),
+            decision.model_name
+        );
 
         // Check for X-Provider header to override priority
         let forced_provider = headers
@@ -491,7 +535,10 @@ async fn handle_openai_chat_completions(
             .map(|s| s.to_string());
 
         if let Some(ref provider_name) = forced_provider {
-            info!("🎯 Using forced provider from X-Provider header: {}", provider_name);
+            info!(
+                "🎯 Using forced provider from X-Provider header: {}",
+                provider_name
+            );
         }
 
         // Sort mappings by priority (or filter by forced provider)
@@ -548,17 +595,26 @@ async fn handle_openai_chat_completions(
                         return Ok(Json(openai_response).into_response());
                     }
                     Err(e) => {
-                        info!("⚠️ Provider {} failed: {}, trying next fallback", mapping.provider, e);
+                        info!(
+                            "⚠️ Provider {} failed: {}, trying next fallback",
+                            mapping.provider, e
+                        );
                         continue;
                     }
                 }
             } else {
-                info!("⚠️ Provider {} not found in registry, trying next fallback", mapping.provider);
+                info!(
+                    "⚠️ Provider {} not found in registry, trying next fallback",
+                    mapping.provider
+                );
                 continue;
             }
         }
 
-        error!("❌ All provider mappings failed for model: {}", decision.model_name);
+        error!(
+            "❌ All provider mappings failed for model: {}",
+            decision.model_name
+        );
         return Err(AppError::ProviderError(format!(
             "All {} provider mappings failed for model: {}",
             sorted_mappings.len(),
@@ -566,27 +622,35 @@ async fn handle_openai_chat_completions(
         )));
     } else {
         // No model mapping found, try direct provider registry lookup (backward compatibility)
-        if let Ok(provider) = state.provider_registry.get_provider_for_model(&decision.model_name) {
-            info!("📦 Using provider from registry (direct lookup): {}", decision.model_name);
+        if let Ok(provider) = state
+            .provider_registry
+            .get_provider_for_model(&decision.model_name)
+        {
+            info!(
+                "📦 Using provider from registry (direct lookup): {}",
+                decision.model_name
+            );
 
             // Update model to routed model
             anthropic_request.model = decision.model_name.clone();
 
             // Call provider
-            let anthropic_response = provider.send_message(anthropic_request)
+            let anthropic_response = provider
+                .send_message(anthropic_request)
                 .await
                 .map_err(|e| AppError::ProviderError(e.to_string()))?;
 
             // Transform to OpenAI format
-            let openai_response = openai_compat::transform_anthropic_to_openai(
-                anthropic_response,
-                model,
-            );
+            let openai_response =
+                openai_compat::transform_anthropic_to_openai(anthropic_response, model);
 
             return Ok(Json(openai_response).into_response());
         }
 
-        error!("❌ No model mapping or provider found for model: {}", decision.model_name);
+        error!(
+            "❌ No model mapping or provider found for model: {}",
+            decision.model_name
+        );
         return Err(AppError::ProviderError(format!(
             "No model mapping or provider found for model: {}",
             decision.model_name
@@ -630,18 +694,30 @@ async fn handle_messages(
     );
 
     // 3. Try model mappings with fallback (1:N mapping)
-    if let Some(model_config) = state.config.models.iter().find(|m| m.name == decision.model_name) {
-        info!("📋 Found {} provider mappings for model: {}", model_config.mappings.len(), decision.model_name);
+    if let Some(model_config) = state
+        .config
+        .models
+        .iter()
+        .find(|m| m.name == decision.model_name)
+    {
+        info!(
+            "📋 Found {} provider mappings for model: {}",
+            model_config.mappings.len(),
+            decision.model_name
+        );
 
         // Check for X-Provider header to override priority
         let forced_provider = headers
             .get("x-provider")
             .and_then(|v| v.to_str().ok())
-            .filter(|s| !s.is_empty())  // Ignore empty strings
+            .filter(|s| !s.is_empty()) // Ignore empty strings
             .map(|s| s.to_string());
 
         if let Some(ref provider_name) = forced_provider {
-            info!("🎯 Using forced provider from X-Provider header: {}", provider_name);
+            info!(
+                "🎯 Using forced provider from X-Provider header: {}",
+                provider_name
+            );
         }
 
         // Sort mappings by priority (or filter by forced provider)
@@ -676,8 +752,10 @@ async fn handle_messages(
                 // Trust the model mapping configuration - no need to validate
 
                 // Parse request as Anthropic format
-                let mut anthropic_request: AnthropicRequest = serde_json::from_value(request_json.clone())
-                    .map_err(|e| AppError::ParseError(format!("Invalid request format: {}", e)))?;
+                let mut anthropic_request: AnthropicRequest =
+                    serde_json::from_value(request_json.clone()).map_err(|e| {
+                        AppError::ParseError(format!("Invalid request format: {}", e))
+                    })?;
 
                 // Save original model name for response
                 let original_model = anthropic_request.model.clone();
@@ -697,25 +775,36 @@ async fn handle_messages(
 
                     match provider.send_message_stream(anthropic_request).await {
                         Ok(stream) => {
-                            info!("✅ Streaming request started with provider: {}", mapping.provider);
+                            info!(
+                                "✅ Streaming request started with provider: {}",
+                                mapping.provider
+                            );
 
                             // Convert byte stream to SSE response
                             // The provider returns raw bytes (SSE format), we pass them through
                             let sse_stream = stream.map(|result| {
-                                result.map(|bytes| {
-                                    // Convert bytes to string for SSE event
-                                    let data = String::from_utf8_lossy(&bytes).to_string();
-                                    Event::default().data(data)
-                                }).map_err(|e| {
-                                    error!("Stream error: {}", e);
-                                    std::io::Error::new(std::io::ErrorKind::Other, e.to_string())
-                                })
+                                result
+                                    .map(|bytes| {
+                                        // Convert bytes to string for SSE event
+                                        let data = String::from_utf8_lossy(&bytes).to_string();
+                                        Event::default().data(data)
+                                    })
+                                    .map_err(|e| {
+                                        error!("Stream error: {}", e);
+                                        std::io::Error::new(
+                                            std::io::ErrorKind::Other,
+                                            e.to_string(),
+                                        )
+                                    })
                             });
 
                             return Ok(Sse::new(sse_stream).into_response());
                         }
                         Err(e) => {
-                            info!("⚠️ Provider {} streaming failed: {}, trying next fallback", mapping.provider, e);
+                            info!(
+                                "⚠️ Provider {} streaming failed: {}, trying next fallback",
+                                mapping.provider, e
+                            );
                             continue;
                         }
                     }
@@ -725,22 +814,34 @@ async fn handle_messages(
                         Ok(mut response) => {
                             // Restore original model name in response
                             response.model = original_model;
-                            info!("✅ Request succeeded with provider: {}, response model: {}", mapping.provider, response.model);
+                            info!(
+                                "✅ Request succeeded with provider: {}, response model: {}",
+                                mapping.provider, response.model
+                            );
                             return Ok(Json(response).into_response());
                         }
                         Err(e) => {
-                            info!("⚠️ Provider {} failed: {}, trying next fallback", mapping.provider, e);
+                            info!(
+                                "⚠️ Provider {} failed: {}, trying next fallback",
+                                mapping.provider, e
+                            );
                             continue;
                         }
                     }
                 }
             } else {
-                info!("⚠️ Provider {} not found in registry, trying next fallback", mapping.provider);
+                info!(
+                    "⚠️ Provider {} not found in registry, trying next fallback",
+                    mapping.provider
+                );
                 continue;
             }
         }
 
-        error!("❌ All provider mappings failed for model: {}", decision.model_name);
+        error!(
+            "❌ All provider mappings failed for model: {}",
+            decision.model_name
+        );
         return Err(AppError::ProviderError(format!(
             "All {} provider mappings failed for model: {}",
             sorted_mappings.len(),
@@ -748,12 +849,19 @@ async fn handle_messages(
         )));
     } else {
         // No model mapping found, try direct provider registry lookup (backward compatibility)
-        if let Ok(provider) = state.provider_registry.get_provider_for_model(&decision.model_name) {
-            info!("📦 Using provider from registry (direct lookup): {}", decision.model_name);
+        if let Ok(provider) = state
+            .provider_registry
+            .get_provider_for_model(&decision.model_name)
+        {
+            info!(
+                "📦 Using provider from registry (direct lookup): {}",
+                decision.model_name
+            );
 
             // Parse request as Anthropic format
-            let mut anthropic_request: AnthropicRequest = serde_json::from_value(request_json.clone())
-                .map_err(|e| AppError::ParseError(format!("Invalid request format: {}", e)))?;
+            let mut anthropic_request: AnthropicRequest =
+                serde_json::from_value(request_json.clone())
+                    .map_err(|e| AppError::ParseError(format!("Invalid request format: {}", e)))?;
 
             // Save original model name for response
             let original_model = anthropic_request.model.clone();
@@ -765,7 +873,8 @@ async fn handle_messages(
             anthropic_request.system = request_for_routing.system.clone();
 
             // Call provider
-            let mut provider_response = provider.send_message(anthropic_request)
+            let mut provider_response = provider
+                .send_message(anthropic_request)
                 .await
                 .map_err(|e| AppError::ProviderError(e.to_string()))?;
 
@@ -776,7 +885,10 @@ async fn handle_messages(
             return Ok(Json(provider_response).into_response());
         }
 
-        error!("❌ No model mapping or provider found for model: {}", decision.model_name);
+        error!(
+            "❌ No model mapping or provider found for model: {}",
+            decision.model_name
+        );
         return Err(AppError::ProviderError(format!(
             "No model mapping or provider found for model: {}",
             decision.model_name
@@ -789,7 +901,10 @@ async fn handle_count_tokens(
     State(state): State<Arc<AppState>>,
     Json(request_json): Json<serde_json::Value>,
 ) -> Result<Response, AppError> {
-    let model = request_json.get("model").and_then(|m| m.as_str()).unwrap_or("unknown");
+    let model = request_json
+        .get("model")
+        .and_then(|m| m.as_str())
+        .unwrap_or("unknown");
     info!("Received count_tokens request for model: {}", model);
 
     // 1. Parse as CountTokensRequest first
@@ -823,8 +938,17 @@ async fn handle_count_tokens(
     );
 
     // 3. Try model mappings with fallback (1:N mapping)
-    if let Some(model_config) = state.config.models.iter().find(|m| m.name == decision.model_name) {
-        info!("📋 Found {} provider mappings for token counting: {}", model_config.mappings.len(), decision.model_name);
+    if let Some(model_config) = state
+        .config
+        .models
+        .iter()
+        .find(|m| m.name == decision.model_name)
+    {
+        info!(
+            "📋 Found {} provider mappings for token counting: {}",
+            model_config.mappings.len(),
+            decision.model_name
+        );
 
         // Sort mappings by priority
         let mut sorted_mappings = model_config.mappings.clone();
@@ -851,21 +975,33 @@ async fn handle_count_tokens(
                 // Call provider's count_tokens
                 match provider.count_tokens(count_request_for_provider).await {
                     Ok(response) => {
-                        info!("✅ Token count succeeded with provider: {}", mapping.provider);
+                        info!(
+                            "✅ Token count succeeded with provider: {}",
+                            mapping.provider
+                        );
                         return Ok(Json(response).into_response());
                     }
                     Err(e) => {
-                        info!("⚠️ Provider {} failed: {}, trying next fallback", mapping.provider, e);
+                        info!(
+                            "⚠️ Provider {} failed: {}, trying next fallback",
+                            mapping.provider, e
+                        );
                         continue;
                     }
                 }
             } else {
-                info!("⚠️ Provider {} not found in registry, trying next fallback", mapping.provider);
+                info!(
+                    "⚠️ Provider {} not found in registry, trying next fallback",
+                    mapping.provider
+                );
                 continue;
             }
         }
 
-        error!("❌ All provider mappings failed for token counting: {}", decision.model_name);
+        error!(
+            "❌ All provider mappings failed for token counting: {}",
+            decision.model_name
+        );
         return Err(AppError::ProviderError(format!(
             "All {} provider mappings failed for token counting: {}",
             sorted_mappings.len(),
@@ -873,15 +1009,22 @@ async fn handle_count_tokens(
         )));
     } else {
         // No model mapping found, try direct provider registry lookup (backward compatibility)
-        if let Ok(provider) = state.provider_registry.get_provider_for_model(&decision.model_name) {
-            info!("📦 Using provider from registry (direct lookup) for token counting: {}", decision.model_name);
+        if let Ok(provider) = state
+            .provider_registry
+            .get_provider_for_model(&decision.model_name)
+        {
+            info!(
+                "📦 Using provider from registry (direct lookup) for token counting: {}",
+                decision.model_name
+            );
 
             // Update model to routed model
             let mut count_request_for_provider = count_request.clone();
             count_request_for_provider.model = decision.model_name.clone();
 
             // Call provider's count_tokens
-            let response = provider.count_tokens(count_request_for_provider)
+            let response = provider
+                .count_tokens(count_request_for_provider)
                 .await
                 .map_err(|e| AppError::ProviderError(e.to_string()))?;
 
@@ -889,7 +1032,10 @@ async fn handle_count_tokens(
             return Ok(Json(response).into_response());
         }
 
-        error!("❌ No model mapping or provider found for token counting: {}", decision.model_name);
+        error!(
+            "❌ No model mapping or provider found for token counting: {}",
+            decision.model_name
+        );
         return Err(AppError::ProviderError(format!(
             "No model mapping or provider found for token counting: {}",
             decision.model_name

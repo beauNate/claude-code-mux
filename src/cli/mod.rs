@@ -1,7 +1,7 @@
+use crate::providers::ProviderConfig;
+use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use anyhow::{Context, Result};
-use crate::providers::ProviderConfig;
 
 /// Application configuration
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -135,8 +135,7 @@ impl AppConfig {
     fn resolve_env_vars(&mut self) -> Result<()> {
         // Resolve server API key
         if let Some(ref key) = self.server.api_key {
-            if key.starts_with('$') {
-                let env_var = &key[1..];
+            if let Some(env_var) = key.strip_prefix('$') {
                 self.server.api_key = std::env::var(env_var).ok();
             }
         }
@@ -150,12 +149,15 @@ impl AppConfig {
 
             // Only resolve env vars for API key auth
             if let Some(ref api_key) = provider.api_key {
-                if api_key.starts_with('$') {
-                    let env_var = &api_key[1..];
+                if let Some(env_var) = api_key.strip_prefix('$') {
                     if let Ok(value) = std::env::var(env_var) {
                         provider.api_key = Some(value);
                     } else {
-                        anyhow::bail!("Environment variable {} not found for provider {}", env_var, provider.name);
+                        anyhow::bail!(
+                            "Environment variable {} not found for provider {}",
+                            env_var,
+                            provider.name
+                        );
                     }
                 }
             }
