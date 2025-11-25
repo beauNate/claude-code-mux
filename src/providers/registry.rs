@@ -126,6 +126,11 @@ impl ProviderRegistry {
                     api_key,
                     config.models.clone(),
                 )),
+                "github-copilot" | "copilot" => Box::new(OpenAIProvider::github_copilot(
+                    config.name.clone(),
+                    api_key,
+                    config.models.clone(),
+                )),
                 "fireworks" => Box::new(OpenAIProvider::fireworks(
                     config.name.clone(),
                     api_key,
@@ -159,6 +164,33 @@ impl ProviderRegistry {
                 "gemini" => Box::new(OpenAIProvider::gemini(
                     config.name.clone(),
                     api_key,
+                    config.models.clone(),
+                )),
+                "longcat" => Box::new(OpenAIProvider::longcat(
+                    config.name.clone(),
+                    api_key,
+                    config
+                        .base_url
+                        .clone()
+                        .unwrap_or_else(|| "https://api.longcat.ai/v1".to_string()),
+                    config.models.clone(),
+                )),
+                "ollama" => Box::new(OpenAIProvider::ollama(
+                    config.name.clone(),
+                    api_key,
+                    config
+                        .base_url
+                        .clone()
+                        .unwrap_or_else(|| "http://localhost:11434/v1".to_string()),
+                    config.models.clone(),
+                )),
+                "lmstudio" => Box::new(OpenAIProvider::lmstudio(
+                    config.name.clone(),
+                    api_key,
+                    config
+                        .base_url
+                        .clone()
+                        .unwrap_or_else(|| "http://localhost:1234/v1".to_string()),
                     config.models.clone(),
                 )),
 
@@ -279,14 +311,40 @@ fn expand_home(path: &str) -> Option<PathBuf> {
 }
 
 fn extract_api_key_from_json(value: &Value) -> Option<String> {
-    for key in ["api_key", "token", "access_token", "key"] {
-        if let Some(v) = value.get(key).and_then(|v| v.as_str()) {
-            if !v.trim().is_empty() {
-                return Some(v.to_string());
+    const TOKEN_KEYS: [&str; 6] = [
+        "api_key",
+        "token",
+        "access_token",
+        "key",
+        "oauth_token",
+        "bearer_token",
+    ];
+
+    fn search(value: &Value, token_keys: &[&str]) -> Option<String> {
+        match value {
+            Value::Object(map) => {
+                for key in token_keys {
+                    if let Some(v) = map.get(*key).and_then(|v| v.as_str()) {
+                        let trimmed = v.trim();
+                        if !trimmed.is_empty() {
+                            return Some(trimmed.to_string());
+                        }
+                    }
+                }
+
+                for nested in map.values() {
+                    if let Some(found) = search(nested, token_keys) {
+                        return Some(found);
+                    }
+                }
+                None
             }
+            Value::Array(arr) => arr.iter().find_map(|v| search(v, token_keys)),
+            _ => None,
         }
     }
-    None
+
+    search(value, &TOKEN_KEYS)
 }
 
 impl Default for ProviderRegistry {

@@ -10,7 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Qwen (Alibaba Cloud) provider support - OpenAI-compatible API with Qwen2.5-Coder and other models
 - Gemini (Google AI) provider support - OpenAI-compatible API with Gemini Pro, Gemini Flash, and other models
-- API key loading from CLI auth JSON via `api_key_path` (works with Qwen Code CLI and Codex/Gemini Code CLI)
+- GitHub Copilot Models, Longcat, Ollama, and LM Studio provider shortcuts (OpenAI-compatible)
+- API key loading from CLI auth JSON via `api_key_path` (works with Qwen Code CLI, Codex/Gemini Code CLI, GitHub Copilot CLI)
 
 ## [0.5.0] - 2025-11-19
 
