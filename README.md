@@ -91,10 +91,10 @@ Claude Code → Claude Code Mux → Multiple AI Providers
 
 ## Supported Providers
 
-**16+ AI providers with automatic format translation, streaming, and failover:**
+**18+ AI providers with automatic format translation, streaming, and failover:**
 
 - **Anthropic-compatible**: Anthropic (API Key/OAuth), ZenMux, z.ai, Minimax, Kimi
-- **OpenAI-compatible**: OpenAI, OpenRouter, Groq, Together, Fireworks, Deepinfra, Cerebras, Moonshot, Nebius, NovitaAI, Baseten
+- **OpenAI-compatible**: OpenAI, OpenRouter, Groq, Together, Fireworks, Deepinfra, Cerebras, Moonshot, Nebius, NovitaAI, Baseten, Qwen, Gemini
 
 <details>
 <summary>📋 View full provider details</summary>
@@ -120,6 +120,8 @@ Claude Code → Claude Code Mux → Multiple AI Providers
 - **Nebius** - AI inference platform
 - **NovitaAI** - GPU cloud platform
 - **Baseten** - ML deployment platform
+- **Qwen** - Alibaba Cloud AI models (Qwen2.5-Coder, etc.)
+- **Gemini** - Google AI models (Gemini Pro, Gemini Flash, etc.)
 
 </details>
 

@@ -153,6 +153,16 @@ impl ProviderRegistry {
                     api_key,
                     config.models.clone(),
                 )),
+                "qwen" => Box::new(OpenAIProvider::qwen(
+                    config.name.clone(),
+                    api_key,
+                    config.models.clone(),
+                )),
+                "gemini" => Box::new(OpenAIProvider::gemini(
+                    config.name.clone(),
+                    api_key,
+                    config.models.clone(),
+                )),
 
                 other => {
                     return Err(ProviderError::ConfigError(format!(

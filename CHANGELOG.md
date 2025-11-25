@@ -5,6 +5,12 @@ All notable changes to Claude Code Mux will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Qwen (Alibaba Cloud) provider support - OpenAI-compatible API with Qwen2.5-Coder and other models
+- Gemini (Google AI) provider support - OpenAI-compatible API with Gemini Pro, Gemini Flash, and other models
+
 ## [0.5.0] - 2025-11-19
 
 ### Added

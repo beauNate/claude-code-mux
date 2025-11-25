@@ -519,6 +519,30 @@ impl OpenAIProvider {
         )
     }
 
+    /// Qwen (Alibaba Cloud) - OpenAI-compatible
+    pub fn qwen(name: String, api_key: String, models: Vec<String>) -> Self {
+        Self::new(
+            name,
+            api_key,
+            "https://dashscope.aliyuncs.com/compatible-mode/v1".to_string(),
+            models,
+            None,
+            None,
+        )
+    }
+
+    /// Gemini (Google) - OpenAI-compatible
+    pub fn gemini(name: String, api_key: String, models: Vec<String>) -> Self {
+        Self::new(
+            name,
+            api_key,
+            "https://generativelanguage.googleapis.com/v1beta/openai".to_string(),
+            models,
+            None,
+            None,
+        )
+    }
+
     /// Get authentication header value (API key or OAuth Bearer token)
     async fn get_auth_header(&self) -> Result<String, ProviderError> {
         // If OAuth provider is configured, use Bearer token
