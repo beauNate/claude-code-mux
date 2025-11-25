@@ -90,6 +90,10 @@ pub struct ProviderConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub api_key: Option<String>,
 
+    /// Path to API key JSON (alternative to api_key, supports CLI auth files)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_key_path: Option<String>,
+
     /// OAuth provider ID (required for auth_type = "oauth")
     /// References a token stored in TokenStore
     #[serde(skip_serializing_if = "Option::is_none")]

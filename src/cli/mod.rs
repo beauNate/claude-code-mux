@@ -161,6 +161,21 @@ impl AppConfig {
                     }
                 }
             }
+
+            // Resolve env vars for api_key_path
+            if let Some(ref path) = provider.api_key_path {
+                if let Some(env_var) = path.strip_prefix('$') {
+                    if let Ok(value) = std::env::var(env_var) {
+                        provider.api_key_path = Some(value);
+                    } else {
+                        anyhow::bail!(
+                            "Environment variable {} not found for provider {}",
+                            env_var,
+                            provider.name
+                        );
+                    }
+                }
+            }
         }
 
         Ok(())

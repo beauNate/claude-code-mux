@@ -125,6 +125,24 @@ Claude Code → Claude Code Mux → Multiple AI Providers
 
 </details>
 
+### Using CLI Auth JSON (no raw API keys)
+
+You can point providers to a CLI-generated auth JSON instead of pasting keys. Set `api_key_path` to the CLI's auth file (fields `api_key`, `access_token`, `token`, or `key` are supported). This works for Qwen Code CLI and Codex/Gemini Code CLI flows.
+
+```toml
+[[providers]]
+name = "qwen-cli"
+provider_type = "qwen"
+api_key_path = "~/.config/qwen/code_cli_auth.json"  # path from Qwen Code CLI login
+enabled = true
+
+[[providers]]
+name = "gemini-cli"
+provider_type = "gemini"
+api_key_path = "~/.config/gemini/code_cli_auth.json"  # path from Gemini/Codex Code CLI login
+enabled = true
+```
+
 ## Installation
 
 ### Option 1: Download Pre-built Binaries (Recommended)

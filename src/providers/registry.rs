@@ -3,7 +3,10 @@ use super::{
     ProviderConfig,
 };
 use crate::auth::TokenStore;
+use serde_json::Value;
 use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 /// Provider registry that manages all configured providers
@@ -38,12 +41,7 @@ impl ProviderRegistry {
 
             // Get API key - required for API key auth, skipped for OAuth
             let api_key = match &config.auth_type {
-                super::AuthType::ApiKey => config.api_key.clone().ok_or_else(|| {
-                    ProviderError::ConfigError(format!(
-                        "Provider '{}' requires api_key for ApiKey auth",
-                        config.name
-                    ))
-                })?,
+                super::AuthType::ApiKey => resolve_api_key(config)?,
                 super::AuthType::OAuth => {
                     // OAuth providers will handle authentication differently
                     // For now, use a placeholder - will be replaced with token
@@ -221,6 +219,74 @@ impl ProviderRegistry {
     pub fn list_providers(&self) -> Vec<String> {
         self.providers.keys().cloned().collect()
     }
+}
+
+/// Resolve API key from direct value or CLI auth JSON path
+fn resolve_api_key(config: &ProviderConfig) -> Result<String, ProviderError> {
+    if let Some(ref api_key) = config.api_key {
+        if !api_key.trim().is_empty() {
+            return Ok(api_key.clone());
+        }
+    }
+
+    if let Some(ref path) = config.api_key_path {
+        return load_api_key_from_file(path).map_err(|e| {
+            ProviderError::ConfigError(format!("Failed to read api_key from {}: {}", path, e))
+        });
+    }
+
+    Err(ProviderError::ConfigError(format!(
+        "Provider '{}' requires api_key or api_key_path for ApiKey auth",
+        config.name
+    )))
+}
+
+fn load_api_key_from_file(path_str: &str) -> Result<String, ProviderError> {
+    let path = expand_home(path_str)
+        .ok_or_else(|| ProviderError::ConfigError(format!("Invalid api_key_path: {}", path_str)))?;
+
+    let content = fs::read_to_string(&path).map_err(|e| {
+        ProviderError::ConfigError(format!("Failed to read {}: {}", path.display(), e))
+    })?;
+
+    let trimmed = content.trim();
+    if trimmed.starts_with('{') {
+        let value: Value = serde_json::from_str(trimmed).map_err(|e| {
+            ProviderError::ConfigError(format!(
+                "Failed to parse JSON from {}: {}",
+                path.display(),
+                e
+            ))
+        })?;
+
+        extract_api_key_from_json(&value).ok_or_else(|| {
+            ProviderError::ConfigError(format!(
+                "No api_key/access_token/token field found in {}",
+                path.display()
+            ))
+        })
+    } else {
+        Ok(trimmed.to_string())
+    }
+}
+
+fn expand_home(path: &str) -> Option<PathBuf> {
+    if let Some(stripped) = path.strip_prefix("~/") {
+        dirs::home_dir().map(|home| home.join(stripped))
+    } else {
+        Some(PathBuf::from(path))
+    }
+}
+
+fn extract_api_key_from_json(value: &Value) -> Option<String> {
+    for key in ["api_key", "token", "access_token", "key"] {
+        if let Some(v) = value.get(key).and_then(|v| v.as_str()) {
+            if !v.trim().is_empty() {
+                return Some(v.to_string());
+            }
+        }
+    }
+    None
 }
 
 impl Default for ProviderRegistry {
