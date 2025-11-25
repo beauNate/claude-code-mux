@@ -460,6 +460,18 @@ impl OpenAIProvider {
         )
     }
 
+    /// GitHub Copilot Models - OpenAI-compatible via Copilot CLI token
+    pub fn github_copilot(name: String, api_key: String, models: Vec<String>) -> Self {
+        Self::new(
+            name,
+            api_key,
+            "https://api.githubcopilot.com/v1".to_string(),
+            models,
+            None,
+            None,
+        )
+    }
+
     /// Fireworks AI - OpenAI-compatible
     pub fn fireworks(name: String, api_key: String, models: Vec<String>) -> Self {
         Self::new(
@@ -541,6 +553,21 @@ impl OpenAIProvider {
             None,
             None,
         )
+    }
+
+    /// Longcat API - OpenAI-compatible
+    pub fn longcat(name: String, api_key: String, base_url: String, models: Vec<String>) -> Self {
+        Self::new(name, api_key, base_url, models, None, None)
+    }
+
+    /// Ollama (local) - OpenAI-compatible
+    pub fn ollama(name: String, api_key: String, base_url: String, models: Vec<String>) -> Self {
+        Self::new(name, api_key, base_url, models, None, None)
+    }
+
+    /// LM Studio (local) - OpenAI-compatible
+    pub fn lmstudio(name: String, api_key: String, base_url: String, models: Vec<String>) -> Self {
+        Self::new(name, api_key, base_url, models, None, None)
     }
 
     /// Get authentication header value (API key or OAuth Bearer token)

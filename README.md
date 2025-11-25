@@ -91,10 +91,10 @@ Claude Code → Claude Code Mux → Multiple AI Providers
 
 ## Supported Providers
 
-**18+ AI providers with automatic format translation, streaming, and failover:**
+**20+ AI providers with automatic format translation, streaming, and failover:**
 
 - **Anthropic-compatible**: Anthropic (API Key/OAuth), ZenMux, z.ai, Minimax, Kimi
-- **OpenAI-compatible**: OpenAI, OpenRouter, Groq, Together, Fireworks, Deepinfra, Cerebras, Moonshot, Nebius, NovitaAI, Baseten, Qwen, Gemini
+- **OpenAI-compatible**: OpenAI, OpenRouter, Groq, Together, Fireworks, Deepinfra, Cerebras, Moonshot, Nebius, NovitaAI, Baseten, Qwen, Gemini, GitHub Copilot Models, Longcat, Ollama, LM Studio
 
 <details>
 <summary>📋 View full provider details</summary>
@@ -122,12 +122,16 @@ Claude Code → Claude Code Mux → Multiple AI Providers
 - **Baseten** - ML deployment platform
 - **Qwen** - Alibaba Cloud AI models (Qwen2.5-Coder, etc.)
 - **Gemini** - Google AI models (Gemini Pro, Gemini Flash, etc.)
+- **GitHub Copilot Models** - GitHub-hosted OpenAI-compatible endpoint (works with Copilot CLI auth JSON)
+- **Longcat** - OpenAI-compatible API (customizable base URL)
+- **Ollama** - Local OpenAI-compatible endpoint (`http://localhost:11434/v1`)
+- **LM Studio** - Local OpenAI-compatible endpoint (`http://localhost:1234/v1`)
 
 </details>
 
 ### Using CLI Auth JSON (no raw API keys)
 
-You can point providers to a CLI-generated auth JSON instead of pasting keys. Set `api_key_path` to the CLI's auth file (fields `api_key`, `access_token`, `token`, or `key` are supported). This works for Qwen Code CLI and Codex/Gemini Code CLI flows.
+You can point providers to a CLI-generated auth JSON instead of pasting keys. Set `api_key_path` to the CLI's auth file (fields `api_key`, `access_token`, `token`, `key`, `oauth_token`, or nested tokens are supported). This works for Qwen Code CLI, Codex/Gemini Code CLI, and GitHub Copilot CLI flows.
 
 ```toml
 [[providers]]
@@ -140,6 +144,12 @@ enabled = true
 name = "gemini-cli"
 provider_type = "gemini"
 api_key_path = "~/.config/gemini/code_cli_auth.json"  # path from Gemini/Codex Code CLI login
+enabled = true
+
+[[providers]]
+name = "copilot-cli"
+provider_type = "github-copilot"
+api_key_path = "~/.config/github-copilot/hosts.json"  # Copilot CLI login file (oauth_token extracted automatically)
 enabled = true
 ```
 
